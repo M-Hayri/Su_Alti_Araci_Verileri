@@ -1,0 +1,4 @@
+float64 sag_motor
+float64 sol_motor
+float64 dikey_on_motor
+float64 dikey_arka_motor

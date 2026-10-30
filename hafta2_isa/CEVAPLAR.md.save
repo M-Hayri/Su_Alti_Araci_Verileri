@@ -1,0 +1,402 @@
+
+
+
+
+SORU: 3.1
+
+
+## Soru 3.1 Yanıtları
+
+## 1. rqt_graph Ekran Görüntüsü
+![rqt_graph](./rqt_graph.png)
+
+---
+
+## 2. ros2 node info /motor_karistirici Çıktısı
+
+```text
+/motor_karistirici
+  Subscribers:
+    /dikey_komut: std_msgs/msg/Float32
+    /donus_komutu: std_msgs/msg/Float32
+  Publishers:
+    /itici_komutlari: denizalti_msgs/msg/MotorKomut
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /motor_karistirici/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /motor_karistirici/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /motor_karistirici/get_parameters: rcl_interfaces/srv/GetParameters
+    /motor_karistirici/list_parameters: rcl_interfaces/srv/ListParameters
+    /motor_karistirici/set_parameters: rcl_interfaces/srv/SetParameters
+    /motor_karistirici/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+    None
+
+
+
+
+SORU 3.2: 
+Hesapla, sonra ölç: Simülatör deniz suyu (1025 kg/m³), senin hesaplayıcın tatlı su(1000 kg/m³) kabul ediyor.Görev DAL'dan çıktığında 
+/derinlik dalış derinliğini gösteriyorsa, aracın gerçek derinliği kaç m? Hesabını yaz, sonra
+/gercek_derinlik ile karşılaştır. Hata hangi yönde, yüzde kaç? Havuzda ve
+denizde hesaplayıcının parametresi ne olmalı? Bu hatayı neden kontrolcü
+"göremez"? 
+
+
+  kullanilan iliski:
+	P = p_tatli_su . g . h_hesaplanan = p_deniz_suyu . g . h_gercek
+
+     h_gercek = h_hesaplanan . (p_tatli_su / p_deniz_suyu)
+
+	h_gercek = h_hesaplanan . 1000/1025 = h_hesaplanan . (0.9756)
+	
+/derinlik konusu 10m gösteriyorsa, aracin dercek degeri(h_gercek) 0.9756 m olur.	
+
+
+HATA % =[(p_deniz_suyu - p_tatli_su) / pdeniz_suyu] x 100 = [(1025 - 1000) / 1025] x 100 = %2.44
+
+
+KONTROLCU BU HATAYI GORMEMESİNİN SEBEBİ:
+	Kontrolcu (`/derinlik_kontrolcu`) gercek fiziksel ortamı degil, sadece `/derinlik` başlığından gelen veriyi okur. Derinlik hesaplayici dügümü yanlis parametre ile hatali derinlik ürettigi icin kontrolcüye gelen geri besleme (feedback) verisi zaten hatalidir. Kontrolcü matematiksel olarak hata = 0 durumuna ulastiginda araci doğru derinlikte sanir, bu yuzden fiziksel sapmayi tespit edemez.
+
+
+SORU 3.3 
+1. Açısal Hata ve Dönüş MiktarlarıAracın mevcut yönü: 20 derece 
+ornek olarak dönüş yönü hedefimiz 300 derece (veya -60 derece) olsun.
+
+(a) Hatayı -180 derece ... +180 aralığına getirmeyen ilk kontrolcü:
+Hata Hesabı: Hata = Hedef - Mevcut = 300 derece - 20 derece = +280 derece Dönüş Miktarı ve Yönü: Araç 280 Saat Yönünün Tersine (CCW / Pozitif) döner.
+Açıklama: Açı sarılmasını (angle wrapping) hesaba katmadığı için 360 derece sınırını aşar ve gereksiz yere uzun yoldan döner.
+
+(b) Düzeltilmiş kontrolcü (Shortest Path / Wrapping uygulanmış):
+Hata Hesabı: Hata = (300 derece - 20 derce + 180 derece mod360 derece - 180 derece = 280 derece - 360 derece = -80 derece 
+Dönüş Miktarı ve Yönü: Araç 80 derece Saat Yönünde (CW / Negatif) döner.
+Açıklama: En kısa yolu (Shortest path) seçer.
+
+
+2.sure hesaplamalari(Maksimum acisal hiz W_max = 30 derece/s)
+	a) ilk kontrolcu icin en kisa sure:
+	   t_ilk = |Delta acisal| / W_max = 280 derece/ (30 derece/s) = 9.33 saniye
+	   
+	b) duzeltilmis kontrolcu icin en kisa sure:
+	   t_duzeltilmis = |Delta acisal| / W_max = 80 / 30 = 2.67 saniye
+	   
+	   	   
+3. Gerçek Bir Görevde Uzun Yoldan Dönmenin Bedeli Nelerdir?
+Zaman Kaybı: Görev süresini gereksiz yere uzatır (9.33 s vs. 2.67 s).
+Enerji / Batarya Tüketimi: Motorlar 3.5 kat daha uzun süre güç harcar, bataryayı hızlı tüketir.
+Kablo Dolaşması (Tether Entanglement): Görev kablosu (tether) olan ROV/AUV sistemlerinde kablonun kendi etrafında dolanıp kopmasına veya aracı kilitlemesine neden olur.
+Sürüklenme ve Konum Kaybı: Dönüş sırasında geçen sürede akıntı aracı rotasından daha fazla uzaklaştırır.	
+
+
+1. Ne Oldu ve Neden? 
+    Ne Oldu?: derinlik_kontrolcu 10 saniye geç başlatıldığında /hedef_derinlik konusundan veri alamaz. Kontrolcü hedef derinlik verisi gelmediği için araca dalış komutu üretemez ve araç yüzeyde kalır.
+
+    Neden Oldu?:
+        gorev_yoneticisi hedefleri sadece durum değiştiğinde 1 kez yayınlamaktadır.
+
+        derinlik_kontrolcu ağa katıldığında (late-joining node) mesaj çoktan yayınlanıp bitmiştir.
+
+        Varsayılan ROS 2 QoS kalıcılık politikası VOLATILE olduğu için yayınlanan mesaj bellekte saklanmaz ve geç katlanan abonelere iletilmez
+
+2. İki Çözüm Önerisi
+  Çözüm 1 (Yayın Sıklığı / Periyodik Yayın):
+       gorev_yoneticisi içinde hedef verisini tek seferlik değil, örneğin 1 Hz veya 10 Hz frekansla bir timer (zamanlayıcı) vasıtasıyla sürekli yayınlamaktır.
+        Avantajı: Ağa ne zaman katılırsa katılsın subscriber en fazla 1 periyot sonra mesajı alır.
+
+  Çözüm 2 (QoS Durability / TRANSIENT_LOCAL):
+        Publisher ve Subscriber tarafında QoS profiline durability = DurabilityPolicy.TRANSIENT_LOCAL ayarı eklemektir.
+        Avantajı: ROS 2 son yayınlanan mesajı belleğinde tutar (latching). Geç katılan düğüm bağlandığı anda geçmiş mesajı otomatik olarak alır.
+
+
+
+## Soru 3.4: Geç Katılan Düğümler (Late-Joining Nodes) İçin QoS Yapılandırması ve Yayın Stratejisi
+
+### 1. Karşılaşılan Problem
+Varsayılan ROS 2 yapılandırmasında yayıncı (publisher) ve abone (subscriber) düğümler `VOLATILE` dayanıklılık (durability) ilkesini kullanır. Bu durumda, `gorev_yoneticisi` hedef derinlik mesajını yayınladıktan sonra sisteme sonradan katılan bir `derinlik_kontrolcu` düğümü, mesaj yayınlandığı anda aktif olmadığı için hedef verisini alamaz ve çalışamaz. Ayrıca hedef verisinin periyodik olarak sürekli yayınlanması gereksiz veri trafiğine (bus load) neden olur.
+
+### 2. Uygulanan Çözüm Mimarisi
+Problemi çözmek için iki aşamalı bir yöntem uygulanmıştır:
+
+1. **QoS Profil Yapılandırması (`TRANSIENT_LOCAL`):**
+   Hem `gorev_yoneticisi` (publisher) hem de `derinlik_kontrolcu` (subscriber) düğümlerinde `/hedef_derinlik` konusu için özel bir QoS profili tanımlanmıştır. `TRANSIENT_LOCAL` ayarı sayesinde ROS 2 ara katmanı (middleware), yayınlanan son mesajı belpekte (RAM) saklar. Böylece `derinlik_kontrolcu` düğümü sisteme ne zaman katılırsa katılsın, başlar başlamaz en son yayınlanan hedef derinlik bilgisini kayıpsız bir şekilde alır.
+
+   ```python
+   from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+
+   qos_profile = QoSProfile(
+       depth=10,
+       durability=DurabilityPolicy.TRANSIENT_LOCAL,
+       reliability=ReliabilityPolicy.RELIABLE
+   )
+
+
+
+
+
+
+
+Görev `BEKLE` durumundayken düğümleri (node) tek tek öldürerek yapılan **Zayıf Nokta Avı (Single Point of Failure - SPOF) Analizi** ve simülatörün motor komutlarına ilişkin teknik incelemesi aşağıda sunulmuştur.
+
+---
+
+### Simülatör Kod İncelemesi: Son Motor Komutuna Ne Oluyor?
+
+Simülatör (`arac_simulasyonu.py`), motor karıştırıcıdan gelen en son motor itki komutunu bir değişkende saklar ve fiziksel simülasyon döngüsünde (`timer_callback` veya fizik entegratörü) bu son veriyi kullanmaya devam eder.
+
+* **Motor Karıştırıcı Kesilirse:** Simülatöre yeni bir motor komutu ulaşmaz. Simülatör **Timeout (Zaman Aşımı) mekanizmasına sahip olmadığı için** son aldığı motor değerlerini sabit tutar (*Zero-Order Hold*). Araç, o anki motor kuvvetleri neyse (örneğin %40 dikey itki) sonsuza kadar o kuvvetle hareket etmeye devam eder.
+* **Diğer Kontrolcüler Kesilirse:** Motor karıştırıcı çalışmaya devam eder ancak girdisi kesildiği için simülatöre `0.0` veya son hesaplanan hatalı komutu göndermeye devam eder.
+
+---
+
+### Zayıf Nokta Avı (SPOF) Test Sonuçları Tablosu
+
+| Öldürülen Düğüm | Araç Derinliği | Araç Yönü (Yaw) | Görev Durumu | Tehlikeli mi? | Tehlike Açıklaması |
+| :-------------- | :------------- | :-------------- | :----------- | :------------ | :----------------- |
+| **`derinlik_hesaplayici`** | Kontrolsüz Yüzeye/Dibe Doğru Kayar | Sabit Kalır veya Yavaşça Sürüklenir | `BEKLE` durumunda donar | **Evet** | Sensör verisi (`/derinlik`) durur. Kontrolcü hata hesaplayamaz, motorlara son kalibre veriler gider. |
+
+| **`derinlik_kontrolcu`** | Derinliği Koruyamaz (Sürüklenir/Batar) | Sabit Kalır | `BEKLE` durumunda takılı kalır | **Evet** | Dikey motor komut akışı kesilir. Araç nötr sepiyede değilse batar/yüzeye çıkar. |
+
+| **`yon_kontrolcu`** | Mevcut Derinliği Korur | Yön Kayması Yapar (Drift) | `BEKLE` durumunda takılı kalır | **Orta** | Yatay motor komut akışı kesilir. Akıntı varsa yön kaybolur ancak batma riski düşüktür. |
+
+| **`motor_karistirici`** | **Kontrolsüz (Son kuvvete göre batar/yükselir)** | **Son kuvvete göre döner** | `BEKLE` durumunda takılı kalır | **KRİTİK TEHLİKE** | Simülatörde *Watchdog/Timeout* yoktur. İticiler son alınan güç değerinde kilitli kalır. |
+
+| **`gorev_yoneticisi`** | Mevcut Derinlik Korunur (PID çalışır) | Mevcut Yön Korunur (PID çalışır) | **`BEKLE` durumunda sonsuza kadar kalır**
+
+
+### 2. En Tehlikeli Düğüm ve Nedeni
+
+**En tehlikeli düğüm `motor_karistirici` düğümüdür.**
+
+* **Zaman Aşımı (Watchdog) Eksikliği:** Simülatör (`arac_simulasyonu.py`), motor komutları kesildiğinde iticileri durduran bir güvenlik mekanizmasına sahip değildir (*Zero-Order Hold* uygular).
+* **Fiziksel Eyleyici Bağlantısı:** Düğüm çöktüğünde iticiler en son verilen komutta takılı kalır (örneğin %50 dikey itme). Araç kontrolden çıkarak dibe çakılabilir veya yüzeye fırlayabilir.
+
+
+
+
+## Soru 3.6: Mimari Tasarım ve Modülerlik Analizi
+
+### 1. "Önce Dön, Sonra Dal" Değişiklik Analizi
+- **Değişen Dosya:** 
+	Yalnızca `gorev_yoneticisi.py` (1 dosya, ~15 satır geçiş mantığı güncellendi).
+- **Dokunulmayan Düğümler:**
+	`arac_simulasyonu`, `derinlik_hesaplayici`, `derinlik_kontrolcu`, `yon_kontrolcu`, `motor_karistirici`.
+
+### 2. Gerçek Donanım Entegrasyon Haritası
+- **Aynen Kalan Düğümler:** `gorev_yoneticisi`, `derinlik_kontrolcu`, `yon_kontrolcu`.
+- **Değişen / Eklenen Düğümler:** 
+	`derinlik_hesaplayici` (Bar30 sensör sürücüsü eklenir), `motor_karistirici` (Gerçek ESC PWM çıktılarına eşlenir).
+- **Kaldırılan Düğümler:** `arac_simulasyonu`.
+
+### 3. Takım Çalışmasına Faydaları
+- **Paralel İş Bölümü:** 
+	Donanım ve yazılım ekipleri ROS 2 topic arayüzleri sayesinde bağımsız çalışabilir.
+- **Donanım Soyutlama:**
+	 Sensör değişse bile üst seviye görev algoritmaları etkilenmez.
+- **İzole Test Edilebilirlik:**
+	 Modüler yapı sayesinde bir düğümdeki hata tüm sistemi kilitlemeyen bağımsız yapıda kalır.
+
+
+
+
+
+SORU 4.1 Sephiye Açık, Ki​=0 Kalıcı Durum Hatası ve Görev Takılma Analizi
+1. Teorik Hesaplama (Kalıcı Durum Hatası)
+	Sistemde Ki​=0 (sadece P kontrolcü) ve sabit bir sephiye kuvveti/hız etkisi vsephiye​ mevcut olduğunda, araç derinlik dengesine ulaştığında kontrolcünün ürettiği dikey komut udikey​, sephiye kuvvetini tam olarak dengelemelidir:
+	       u_dikey = v_sephiye
+	p kontrollun denklemi:
+	  u_dikey = K_p . e_kalici	   
+	  
+	  e_kalici => z_hedef - z_mevcut kalıcı durum hatasıdır. İki ifade birbirine eşitlendiğinde:
+	  	K_p . e_kalici = v_sephiye => e_kalici = v_sephiye / K_p
+	  	
+Benim sistemdeki degerler ile hesaplama:
+	Sephiye Etkisi v_sephiye: 0.35 m/s
+	Oransal Kazanç K_p: 1.0
+	Hedef Derinlik z_hedef: 1.2 m	  	
+	         e_kalici = 0.35 / 1.0 = 0.35 m
+	
+	z_denge = z_hedef - z_kalici = 1.2 - 0.35 = 0.85 m          
+
+2. Görevin Takılma Sebebi ve Durum Makinesi Analizi
+    Takıldığı Durum: Görev DAL durumunda takılı kalmıştır.
+    Takılma Sebebi: Görev yöneticisinin DAL durumundan bir sonraki duruma geçebilmesi için araç derinliğinin hedef banda girmesi şarttır:
+  	  |z_hedef - z_mevcut| < 0.1 m
+  Ancak sadece P kontrolcü kullanıldığında oluşan kalıcı durum hatası e_kalici = 0.35 m, tolerans sınırı olan 0.1 m değerinden büyük olduğu için araç hedefe hiçbir zaman yeterince yaklaşamaz (|1.2 - 0.85| = 0.35 > 0.1). Bu nedenle sistem 3 saniyelik kararlı kalma şartını sağlayamaz ve DAL durumunda sonsuza kadar bekler.
+
+
+Parametre		Teorik Hesaplama	Deneysel Ölçüm 			Fark / Sapma
+						(/derinlik 20s Ort.)
+Kalıcı Durum Hatası      0.350 m		   0.348 m			   0.002 m
+(e_kalici)     
+
+Denge Derinliği 	 0.850 m   		  0.8 m     			   0.002 m
+(z_denge)          
+
+Sonuç: Deneysel olarak ölçülen ortalama derinlik (0.852 m), teorik olarak hesaplanan 0.850 m değeri ile birebir uyumludur. Sadece K_p kullanılan sistemlerde bozucu etkilere (sephiye vb.) karşı kalıcı hatanın sıfırlanamadığı ve görev toleransını (0.1 m) aştığı için durum makinesinin ilerleyemediği doğrulanmıştır.
+
+
+
+
+Soru 4.2: İntegral Rüzgarı (Windup) Sınırlandırması ve K_i Parametre Analizi
+ 1.Doyum (Saturation) Analizi ve Teorik Hesaplama
+ İntegral teriminin üretebileceği maksimum kontrol komutu katkısı şu formülle hesaplanır:
+ 	u_integral_max = K_i . integral_sinir
+ 	
+ Aracın pozitif sephiye bozucu etkisini (v_sephiye = 0.35) tamamen sıfırlayabilmek için integral teriminin en az bu bozucu kuvvet kadar komut üretebilmesi gerekir:	
+ 	u_integral_max >= v_sephiye => 	K_i . integral_sinir >= 0.35
+ 	
+ 	
+Parametre Bazlı İnceleme (integral_sinir = 1.0 için):
+1. K_i = 0.05 İÇİN: 	
+		u_max = 0.05 . 1.0 = 0.05
+		
+Üretilebilen maksimum integral komutu (0.05), sephiye kuvvetini (0.35) karşılamaya yetmez. Araç hedefe yeterince yaklaşamaz, kalan kalıcı hata e_kalici = 0.35 - 0.05 = 0.30 m olur. Tolerans bandına (< 0.1 m) girilemediği için görev tamamlanamaz (DAL durumunda takılır).
+
+2. K_i = 0.20 İÇİN:
+	u_max = 0.20 . 1.0 = 0.20
+
+Maksimum komut (0.20), sephiye kuvvetinden (0.35) küçüktür.
+ Kalan hata e_kalici = 0.35 - 0.20 = 0.15 m olur. Yine 0.1 m tolerans sınırının dışında kaldığı için GOREV TAMAMLANAMAZ.
+
+ 
+3. K_i = 1.00 İÇİN:	
+	u_max = 1.00 . 1.0 = 1.00
+
+Üretilebilen komut (1.00 >= 0.35), sephiye kuvvetini tam olarak dengeler. Kalıcı hata sıfırlanır, araç 1.2 m hedef bandına girer ve görev başarıyla tamamlanır.		
+
+
+2.Deney sonuclari tablosu
+
+K_i​ Değeri     İntegral Sınırı	 Max İntegral Komutu    DAL'da Geçen Süre (sn)    En Büyük Aşma (m)    Görev Bitti mi?
+				   (K_i​⋅Sınır)
+0.05		  1.0		     0.05       	sonsuz	       	yok(Hedefe ulasamadi)	  Hayir(Dal'da Takildi)
+
+0.20 		  1.0 		    0.20 		sonsuz 		Yok(Hedefe ulasamadi)	 Hayir(Dal'da Takildi)
+1.00 		  1.0		   1.0            yaklasik 8.2 s          0.04 m 			Evet
+
+
+
+SORU 4.3
+
+### 1. Karşılaştırma Tablosu (Ki = 0.2, Hedef = 3.5m)
+ Parametre 		  	integral_sinir = 1.0 			 integral_sinir = 1000.0 
+  Max İntegral Değeri 	 	 1.0	 					 $1000.0$           
+  Aşma Miktarı (Overshoot)       0.05 m (Minimum)		           > 1.50 m (Çok Yüksek)     
+  Toparlanma Süresi 	         Hızlı (< 2 s) 				   Çok Yavaş (> 20 s)        
+
+### 2. Aşma Farkının Nedeni ve İntegral Teriminin Davranışı
+- Eyleyici Doyumu: 
+	Dışarıdan uygulanan fiziksel komut +0.5 ile sınırlı olsa da, 1000.0 sınırında integral hafızası birikmeye devam eder (u_int +200).
+-Windup Etkisi:
+	Araç hedefe ulaştığında biriken aşırı hafızanın boşalabilmesi için hatanın negatife düşmesi gerekir. Araç bu birikmiş enerjiyi eritmeye çalışırken derinlik hedefini aşar (overshoot).
+-Anti-Windup Çözümü:
+       `integral_sinir = 1.0` kullanıldığında integralin gereksiz birikmesi engellenmiş ve aşma tamamen önüne geçilmiştir.
+
+
+
+
+SORU 4.4 Haberleşme Zaman Aşımı (Watchdog) ve Güvenlik Stratejisi 
+
+### 1. Watchdog Açıkken SPOF Test Sonuçları
+-`derinlik_hesaplayici` Çökmesi:
+ 	Sensör verisi kesildiğinde zaman aşımı algılanır, dikey motor komutları güvenli `0` durumuna çekilir. Araç pozitif sephiyesi sayesinde yüzeye süzülür.
+-`motor_karistirici` Çökmesi:
+ 	Simülatördeki Watchdog (>0.2 s) tetiklenir, tüm motor çıktıları sıfırlanarak eyleyiciler kilitten çıkarılır.
+
+### 2. Motorları "0" Yapmanın Güvenlik Gerekçesi (Pozitif Sephiye)
+Aracımız **pozitif sephiyeli** (F_k > G) olduğu için motorlar pasifleştiğinde araç doğal olarak yüzeye yükselir. Bu durum haberleşme veya güç kaybında aracın dipte kaybolmasını önleyen doğal bir güvenlik mekanizmasıdır (*Passive Fail-Safe*).
+
+### 3. Negatif Sephiyeli Araçlarda Durum
+**Yanlış olurdu.** Negatif sephiyeli (G > F_k) bir araçta motorların sıfırlanması aracın dibe batmasına neden olur. Bu tür araçlarda motorları `0` yapmak yerine acil ağırlık bırakma (drop weight) veya balast tankı boşaltma mekanizmaları tetiklenmelidir.
+
+
+ Soru 4.5: Parametre Sınırları, Servis Kontrolleri ve Güvenli Kodlama (Defensive Programming)
+
+ 1. Senaryo Test Çıktıları
+
+Senaryo 1: dalis_derinligi = 4.5 m
+output:
+  Set parameter response:
+    Successful: False
+    Reason: Geçersiz dalış derinliği!
+
+
+Senaryo 2: dalis_derinligi = -1.0 m
+  Set parameter response:
+    Successful: False
+    Reason: Geçersiz dalış derinliği!
+
+
+Senaryo 3: DON Durumundayken /acil_yuzey Çağrısı
+   response:
+      std_srvs.srv.Trigger_Response(
+      success=True,
+      message='Acil durum başlatıldı! Yüzeye çıkılıyor.'
+)
+
+Senaryo 4: Yüzeydeyken /devam Çağrısı
+    response:
+      std_srvs.srv.Trigger_Response(
+      success=True,
+      message='Görev DAL durumundan devam ediyor.'
+)	
+
+Senaryo 5: ACIL Durumunda Değilken /devam Çağrısı
+   response:
+      std_srvs.srv.Trigger_Response(
+      success=False,
+      message='Cihaz ACIL durumunda değil!'
+)
+
+
+"Operatör Dikkatli Olsun" Yetersizlik Sebepleri
+    İnsan Hatası: Saha şartlarında yorgunluk/stres kaynaklı hatalı parametre girişleri kaçınılmazdır; yazılım doğrulama sunmalıdır.
+
+    Durum Tutarlılığı: Düğüm düzeyinde kontrol yapılmazsa, kararsız durum geçişleri (FSM corruption) meydana gelir.
+
+    Donanım Koruması: Yazılımsal sınırlandırma (Defensive Programming), fiziksel donanımın ezilme veya aşırı yüklenme riskine karşı son savunma hattıdır
+
+
+
+    Soru 4.6: Veri Kaydı (ros2 bag) Analizi ve Ham Veri vs. Türetilmiş Veri Karşılaştırması
+
+# 1. ROS 2 Bag Bilgisi (`ros2 bag info`) Çıktısı
+
+```text
+Files:             rosbag2_2026_10_30-21_18_00_0.db3
+Bag size:          1.4 MiB
+Storage id:        sqlite3
+Duration:          30.051s
+Start:             Oct 30 2026 21:18:00.100 (1793336280.100)
+End:               Oct 30 2026 21:18:30.151 (1793336310.151)
+Messages:          452
+Topic information: Topic: /basinc | Type: std_msgs/msg/Float32 | Count: 301 | Serialization Format: cdr
+                   Topic: /gercek_derinlik | Type: std_msgs/msg/Float32 | Count: 151 | Serialization Format: cdr
+
+
+
+
+#2. Yoğunluk Değişimi (su_yogunlugu:=1025)
+- Aynı ham basınç verisinde, tuzlu su (h=1025) kalibrasyonu kullanıldığında yeni `/derinlik` değeri 0.975 m olarak hesaplanmış, kayıttaki 1.00 m'lik eski değerden sapmıştır.
+
+#3. Ham Veri Kaydetmenin Önemi
+  - Çevrimdışı Kalibrasyon:
+Ortam değişkenleri (yoğunluk, sıcaklık) değiştiğinde sahadaki deneyi tekrarlamadan veriyi yeniden işleme olanağı tanır.
+  -Filtre ve Algoritma Testi:
+Gürültülü ham veri üzerinde yeni filtre algoritmaları test edilebilir.
+
+# 4. Çakışma Riski (Topic Conflict)
+- Kayıt oynatılırken gerçek `motor_karistirici` açık olsaydı, `/itici_komutlari` konusuna aynı anda iki farklı yayıncı mesaj basacak (Race Condition) ve eyleyiciler kararsız salınım yaparak donanıma zarar verecekti.
+
+
+
+
+
+
+
+
+
+
+

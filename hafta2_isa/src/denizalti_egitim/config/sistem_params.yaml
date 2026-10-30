@@ -1,0 +1,27 @@
+arac_simulasyonu:
+  ros__parameters:
+    frekans: 2.0
+    sephiye_hizi: 0.06
+    baslangic_yonu: 0.0
+    su_yogunlugu: 1000.0
+
+derinlik_hesaplayici:
+  ros__parameters:
+    su_yogunlugu: 1000.0
+
+derinlik_kontrolcu:
+  ros__parameters:
+    kp_derinlik: 1.0
+    ki_derinlik: 0.2
+    integral_sinir: 1.0
+    max_izinli_derinlik: 3.5
+
+yon_kontrolcu:
+  ros__parameters:
+    kp_yon: 0.02
+
+gorev_yoneticisi:
+  ros__parameters:
+    dalis_derinligi: 1.2
+    donus_yonu: 0.0
+    max_izinli_derinlik: 3.5
