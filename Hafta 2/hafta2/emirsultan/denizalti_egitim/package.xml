@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>denizalti_egitim</name>
+  <version>0.2.0</version>
+  <description>Mavi Gölge ROS 2 İkinci Aşama Eğitim Paketi - Otonom Görev ve Kontrol Mimarisi</description>
+  <maintainer email="emirsultanbgtkn@gmail.com">emirsultan</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>rcl_interfaces</depend>
+  <depend>denizalti_msgs</depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
